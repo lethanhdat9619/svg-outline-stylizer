@@ -107,10 +107,24 @@ export const processSVG = (
     
     console.log("Outer path created successfully");
     
-    // Create the final SVG structure manually
-    const newWidth = width + (borderWidth * 2);
-    const newHeight = height + (borderWidth * 2);
-    const newViewBox = `-${borderWidth} -${borderWidth} ${newWidth} ${newHeight}`;
+    // Calculate the bounds for the outer path to ensure we don't cut it off
+    const outerBounds = outerPath.bounds;
+    
+    // Calculate padding needed to fully display the border
+    // We add a small extra padding (2px) to ensure nothing gets cut off
+    const paddingLeft = Math.max(0, -outerBounds.x) + 2;
+    const paddingTop = Math.max(0, -outerBounds.y) + 2;
+    const paddingRight = Math.max(0, outerBounds.x + outerBounds.width - width) + 2;
+    const paddingBottom = Math.max(0, outerBounds.y + outerBounds.height - height) + 2;
+    
+    // New dimensions that will fully contain both the original SVG and the border
+    const newWidth = width + paddingLeft + paddingRight;
+    const newHeight = height + paddingTop + paddingBottom;
+    
+    // Create a viewBox that ensures the entire content is visible
+    const newViewBox = `${-paddingLeft} ${-paddingTop} ${newWidth} ${newHeight}`;
+    
+    console.log("New dimensions:", newWidth, newHeight, "viewBox:", newViewBox);
     
     // Create a new SVG document
     const finalSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -137,7 +151,7 @@ export const processSVG = (
     // Add the outer path group to the new SVG
     finalSvg.appendChild(outerPathGroup);
     
-    // Add the original SVG as a nested SVG
+    // Add the original SVG as a nested SVG, adjusted for the new viewBox
     const innerSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     innerSvg.setAttribute('x', '0');
     innerSvg.setAttribute('y', '0');
