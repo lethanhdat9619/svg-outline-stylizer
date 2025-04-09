@@ -1,4 +1,3 @@
-
 import paper from 'paper';
 import PaperOffset from 'paperjs-offset';
 
@@ -13,8 +12,10 @@ const initializePaper = () => {
     canvas.height = 1000;
     paper.setup(canvas);
     
-    // PaperOffset is a function that extends paper
-    PaperOffset(paper);
+    // Install PaperOffset
+    if (typeof PaperOffset === 'function') {
+      PaperOffset(paper);
+    }
     
     initialized = true;
     console.log("Paper.js initialized successfully");
@@ -37,6 +38,10 @@ export const processSVG = (
     const importedItem = paper.project.importSVG(svgString);
     console.log("SVG imported:", importedItem);
     
+    if (!importedItem) {
+      throw new Error('Failed to import SVG');
+    }
+    
     // Get all paths from the imported SVG
     const allPaths: paper.Path[] = [];
     
@@ -45,7 +50,6 @@ export const processSVG = (
       if (item instanceof paper.Path) {
         allPaths.push(item);
       } else if (item.children) {
-        // Use children array instead of traverse method
         item.children.forEach(child => collectPaths(child));
       }
     };
@@ -57,16 +61,32 @@ export const processSVG = (
       throw new Error('No paths found in SVG');
     }
     
-    // Create a compound path from all paths to ensure we have an outer path
-    const compoundPath = new paper.CompoundPath({
-      children: allPaths.map(path => path.clone()),
-      fillColor: null,
-      strokeColor: null
-    });
+    // Create an outer path by uniting all paths
+    let unifiedPath: paper.PathItem;
     
-    // Generate the outer border using offset
-    // Use the correct method from PaperOffset
-    const outerPath = compoundPath.offset(borderWidth, { join: 'round' });
+    if (allPaths.length === 1) {
+      unifiedPath = allPaths[0].clone();
+    } else {
+      // Create a single unified path from all paths
+      unifiedPath = allPaths[0].clone();
+      for (let i = 1; i < allPaths.length; i++) {
+        const nextPath = allPaths[i].clone();
+        if (unifiedPath.unite) {
+          unifiedPath = unifiedPath.unite(nextPath);
+          nextPath.remove();
+        }
+      }
+    }
+    
+    console.log("Created unified path");
+    
+    // Ensure the unified path has no fill for the offset operation
+    unifiedPath.fillColor = null;
+    unifiedPath.strokeColor = null;
+    
+    // Use the offset method provided by PaperOffset
+    // @ts-ignore - Using PaperOffset's extension to Path
+    const outerPath = unifiedPath.offset(borderWidth, { join: 'round' });
     
     if (!outerPath) {
       throw new Error('Failed to create outer path');
@@ -74,17 +94,29 @@ export const processSVG = (
     
     console.log("Outer path created successfully");
     
-    // Style the outer path
+    // Style the outer path (outline only, no fill)
     outerPath.fillColor = null;
     outerPath.strokeColor = new paper.Color(borderColor);
     outerPath.strokeWidth = 1;
     
-    // Hide the original SVG for export
-    compoundPath.visible = false;
+    // The original SVG should be visible, but the unified path should be hidden
+    unifiedPath.visible = false;
     
-    // Add the original SVG back, but with no stroke
+    // Add the original SVG back
     const originalItem = paper.project.importSVG(svgString);
-    originalItem.strokeColor = null;
+    if (originalItem) {
+      // Make sure the original SVG has no stroke so it doesn't interfere with the border
+      const removeStrokes = (item: paper.Item) => {
+        if (item instanceof paper.Path) {
+          // Keep fill, remove stroke
+          item.strokeColor = null;
+        } else if (item.children) {
+          item.children.forEach(child => removeStrokes(child));
+        }
+      };
+      
+      removeStrokes(originalItem);
+    }
     
     // Export the result as SVG
     const exportedSVG = paper.project.exportSVG({ asString: true }) as string;
