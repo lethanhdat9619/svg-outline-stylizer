@@ -1,3 +1,4 @@
+
 import paper from 'paper';
 import PaperOffset from 'paperjs-offset';
 
@@ -33,6 +34,18 @@ export const processSVG = (
     
     // Clear project
     paper.project.clear();
+    
+    // Parse SVG to get width and height
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgString, "image/svg+xml");
+    const svgElement = svgDoc.documentElement;
+    
+    // Get the original SVG dimensions
+    let width = parseInt(svgElement.getAttribute('width') || '24');
+    let height = parseInt(svgElement.getAttribute('height') || '24');
+    let viewBox = svgElement.getAttribute('viewBox') || `0 0 ${width} ${height}`;
+    
+    console.log("Original SVG dimensions:", width, height, "viewBox:", viewBox);
     
     // Import SVG
     const importedItem = paper.project.importSVG(svgString);
@@ -94,35 +107,56 @@ export const processSVG = (
     
     console.log("Outer path created successfully");
     
+    // Create the final SVG structure manually
+    const newWidth = width + (borderWidth * 2);
+    const newHeight = height + (borderWidth * 2);
+    const newViewBox = `-${borderWidth} -${borderWidth} ${newWidth} ${newHeight}`;
+    
+    // Create a new SVG document
+    const finalSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    finalSvg.setAttribute('width', newWidth.toString());
+    finalSvg.setAttribute('height', newHeight.toString());
+    finalSvg.setAttribute('viewBox', newViewBox);
+    finalSvg.setAttribute('fill', 'none');
+    finalSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    
+    // Export the outer path
+    paper.project.clear();
+    paper.project.activeLayer.addChild(outerPath);
+    
     // Style the outer path (outline only, no fill)
     outerPath.fillColor = null;
     outerPath.strokeColor = new paper.Color(borderColor);
-    outerPath.strokeWidth = 1;
+    outerPath.strokeWidth = 2;
     
-    // The original SVG should be visible, but the unified path should be hidden
-    unifiedPath.visible = false;
+    // Export the outer path as SVG string
+    const outerPathSvg = paper.project.exportSVG({ asString: true }) as string;
+    const outerPathGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    outerPathGroup.innerHTML = outerPathSvg.replace(/<svg[^>]*>([\s\S]*)<\/svg>/i, '$1');
     
-    // Add the original SVG back
-    const originalItem = paper.project.importSVG(svgString);
-    if (originalItem) {
-      // Make sure the original SVG has no stroke so it doesn't interfere with the border
-      const removeStrokes = (item: paper.Item) => {
-        if (item instanceof paper.Path) {
-          // Keep fill, remove stroke
-          item.strokeColor = null;
-        } else if (item.children) {
-          item.children.forEach(child => removeStrokes(child));
-        }
-      };
-      
-      removeStrokes(originalItem);
-    }
+    // Add the outer path group to the new SVG
+    finalSvg.appendChild(outerPathGroup);
     
-    // Export the result as SVG
-    const exportedSVG = paper.project.exportSVG({ asString: true }) as string;
+    // Add the original SVG as a nested SVG
+    const innerSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    innerSvg.setAttribute('x', '0');
+    innerSvg.setAttribute('y', '0');
+    innerSvg.setAttribute('width', width.toString());
+    innerSvg.setAttribute('height', height.toString());
+    innerSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    innerSvg.setAttribute('fill', 'currentColor');
+    innerSvg.innerHTML = svgString.replace(/<svg[^>]*>([\s\S]*)<\/svg>/i, '$1');
+    
+    // Add the inner SVG to the final SVG
+    finalSvg.appendChild(innerSvg);
+    
+    // Return the final SVG string
+    const serializer = new XMLSerializer();
+    const finalSvgString = serializer.serializeToString(finalSvg);
+    
     console.log("SVG exported successfully");
     
-    return exportedSVG;
+    return finalSvgString;
   } catch (error) {
     console.error('Error processing SVG:', error);
     throw error;
