@@ -12,8 +12,12 @@ const initializePaper = () => {
     canvas.width = 1000;
     canvas.height = 1000;
     paper.setup(canvas);
-    PaperOffset.install(paper);
+    
+    // PaperOffset is a function that extends paper
+    PaperOffset(paper);
+    
     initialized = true;
+    console.log("Paper.js initialized successfully");
   }
 };
 
@@ -24,21 +28,30 @@ export const processSVG = (
 ): string => {
   try {
     initializePaper();
+    console.log("Processing SVG with border width:", borderWidth, "color:", borderColor);
     
     // Clear project
     paper.project.clear();
     
     // Import SVG
     const importedItem = paper.project.importSVG(svgString);
-    importedItem.fillColor = null; // Remove fill to ensure we only work with paths
+    console.log("SVG imported:", importedItem);
     
     // Get all paths from the imported SVG
     const allPaths: paper.Path[] = [];
-    importedItem.traverse((item) => {
+    
+    // Correctly collect all paths from the imported SVG
+    const collectPaths = (item: paper.Item) => {
       if (item instanceof paper.Path) {
         allPaths.push(item);
+      } else if (item.children) {
+        // Use children array instead of traverse method
+        item.children.forEach(child => collectPaths(child));
       }
-    });
+    };
+    
+    collectPaths(importedItem);
+    console.log("Found paths:", allPaths.length);
     
     if (allPaths.length === 0) {
       throw new Error('No paths found in SVG');
@@ -52,12 +65,14 @@ export const processSVG = (
     });
     
     // Generate the outer border using offset
-    // @ts-ignore - PaperOffset extends Paper.js types
+    // Use the correct method from PaperOffset
     const outerPath = compoundPath.offset(borderWidth, { join: 'round' });
     
     if (!outerPath) {
       throw new Error('Failed to create outer path');
     }
+    
+    console.log("Outer path created successfully");
     
     // Style the outer path
     outerPath.fillColor = null;
@@ -73,6 +88,7 @@ export const processSVG = (
     
     // Export the result as SVG
     const exportedSVG = paper.project.exportSVG({ asString: true }) as string;
+    console.log("SVG exported successfully");
     
     return exportedSVG;
   } catch (error) {
