@@ -22,12 +22,168 @@ const initializePaper = () => {
   }
 };
 
-export const processSVG = (
+/**
+ * Checks if an SVG contains embedded images
+ * @param svgString The SVG string to check
+ * @returns True if the SVG contains an image element or xlink:href with base64 data
+ */
+const containsEmbeddedImages = (svgString: string): boolean => {
+  return (
+    svgString.includes("<image") ||
+    svgString.includes('xlink:href="data:image') ||
+    svgString.includes('href="data:image')
+  );
+};
+
+/**
+ * Creates a simple rectangular border for an SVG that contains embedded images
+ * @param svgString The original SVG string
+ * @param width The width of the SVG
+ * @param height The height of the SVG
+ * @param borderWidth The width of the border to add
+ * @param borderColor The color of the border
+ * @returns A new SVG string with a rectangular border
+ */
+const createRectangleBorderForImageSvg = (
   svgString: string,
+  width: number,
+  height: number,
+  borderWidth: number,
+  borderColor: string
+): string => {
+  try {
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgString, "image/svg+xml");
+    const svgElement = svgDoc.documentElement;
+
+    // Lưu lại tất cả các thuộc tính của SVG gốc
+    const attributes = Array.from(svgElement.attributes).reduce((acc, attr) => {
+      acc[attr.name] = attr.value;
+      return acc;
+    }, {} as { [key: string]: string });
+
+    // Đảm bảo các namespace quan trọng được bảo toàn
+    if (!attributes["xmlns"]) {
+      svgElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    }
+
+    if (!attributes["xmlns:xlink"] && svgString.includes("xlink:href")) {
+      svgElement.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    }
+
+    // Lấy kích thước và viewBox của SVG gốc
+    const originalWidth = parseInt(attributes.width || width.toString());
+    const originalHeight = parseInt(attributes.height || height.toString());
+    const viewBox =
+      attributes.viewBox || `0 0 ${originalWidth} ${originalHeight}`;
+    const viewBoxParts = viewBox.split(" ").map(Number);
+    const viewBoxX = viewBoxParts[0] || 0;
+    const viewBoxY = viewBoxParts[1] || 0;
+    const viewBoxWidth = viewBoxParts[2] || originalWidth;
+    const viewBoxHeight = viewBoxParts[3] || originalHeight;
+
+    // Tính toán viewBox mới để chứa viền
+    const newViewBox = `${viewBoxX - borderWidth} ${viewBoxY - borderWidth} ${
+      viewBoxWidth + borderWidth * 2
+    } ${viewBoxHeight + borderWidth * 2}`;
+
+    // Tính toán kích thước mới
+    const newWidth = originalWidth + borderWidth * 2;
+    const newHeight = originalHeight + borderWidth * 2;
+
+    // Cập nhật thuộc tính width, height và viewBox
+    svgElement.setAttribute("width", newWidth.toString());
+    svgElement.setAttribute("height", newHeight.toString());
+    svgElement.setAttribute("viewBox", newViewBox);
+
+    // Tạo một nhóm để chứa nội dung gốc và di chuyển nó để làm chỗ cho viền
+    const mainGroup = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "g"
+    );
+
+    // Thêm id cho nhóm chính để dễ dàng xác định
+    mainGroup.setAttribute("id", "original-content-group");
+
+    // Di chuyển tất cả nội dung gốc từ SVG vào nhóm mới
+    while (svgElement.firstChild) {
+      mainGroup.appendChild(svgElement.firstChild);
+    }
+
+    // Tạo hình chữ nhật làm viền
+    const borderRect = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    borderRect.setAttribute("id", "border-rect");
+    borderRect.setAttribute("x", (viewBoxX - borderWidth / 2).toString());
+    borderRect.setAttribute("y", (viewBoxY - borderWidth / 2).toString());
+    borderRect.setAttribute("width", (viewBoxWidth + borderWidth).toString());
+    borderRect.setAttribute("height", (viewBoxHeight + borderWidth).toString());
+    borderRect.setAttribute("rx", borderWidth.toString());
+    borderRect.setAttribute("ry", borderWidth.toString());
+    borderRect.setAttribute("stroke", borderColor);
+    borderRect.setAttribute("stroke-width", borderWidth.toString());
+    borderRect.setAttribute("fill", "none");
+
+    // Thêm viền vào SVG trước
+    svgElement.appendChild(borderRect);
+
+    // Thêm nhóm chứa nội dung gốc vào SVG sau viền
+    svgElement.appendChild(mainGroup);
+
+    // Thêm bình luận để giải thích các phần của SVG
+    const commentNode = document.createComment(
+      " SVG with border added by SVG Outline Stylizer. Original content preserved in the group below. "
+    );
+    svgElement.insertBefore(commentNode, svgElement.firstChild);
+
+    // Trả về chuỗi SVG mới
+    const serializer = new XMLSerializer();
+    const finalSvgString = serializer.serializeToString(svgElement);
+
+    return finalSvgString;
+  } catch (error) {
+    console.error("Error creating border for image SVG:", error);
+    return svgString; // Trả về SVG gốc nếu có lỗi
+  }
+};
+
+export const processSVG = (
+  svgString: unknown,
   borderWidth: number = 10,
   borderColor: string = "#000000"
 ): string => {
   try {
+    // Check if the SVG input is a string and convert if necessary
+    let svgStringValue: string;
+
+    if (typeof svgString !== "string") {
+      if (svgString === null || svgString === undefined) {
+        throw new Error("SVG input is null or undefined");
+      }
+
+      // Try to convert to string
+      try {
+        if (svgString instanceof SVGElement) {
+          const serializer = new XMLSerializer();
+          svgStringValue = serializer.serializeToString(svgString);
+        } else if (typeof svgString === "object") {
+          svgStringValue = JSON.stringify(svgString);
+        } else {
+          svgStringValue = String(svgString);
+        }
+      } catch (error) {
+        throw new Error(`Failed to convert SVG input to string: ${error}`);
+      }
+    } else {
+      svgStringValue = svgString;
+    }
+
+    if (!svgStringValue.includes("<svg")) {
+      throw new Error("Invalid SVG content: Missing <svg> tag");
+    }
+
     initializePaper();
     console.log(
       "Processing SVG with border width:",
@@ -36,12 +192,9 @@ export const processSVG = (
       borderColor
     );
 
-    // Clear project
-    paper.project.clear();
-
     // Parse SVG to get width and height
     const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svgString, "image/svg+xml");
+    const svgDoc = parser.parseFromString(svgStringValue, "image/svg+xml");
     const svgElement = svgDoc.documentElement;
 
     // Get the original SVG dimensions
@@ -52,8 +205,25 @@ export const processSVG = (
 
     console.log("Original SVG dimensions:", width, height, "viewBox:", viewBox);
 
+    // Check if the SVG contains embedded images
+    if (containsEmbeddedImages(svgStringValue)) {
+      console.log(
+        "SVG contains embedded images, using rectangular border approach"
+      );
+      return createRectangleBorderForImageSvg(
+        svgStringValue,
+        width,
+        height,
+        borderWidth,
+        borderColor
+      );
+    }
+
+    // Clear project
+    paper.project.clear();
+
     // Import SVG
-    const importedItem = paper.project.importSVG(svgString);
+    const importedItem = paper.project.importSVG(svgStringValue);
     console.log("SVG imported:", importedItem);
 
     if (!importedItem) {
@@ -76,7 +246,16 @@ export const processSVG = (
     console.log("Found paths:", allPaths.length);
 
     if (allPaths.length === 0) {
-      throw new Error("No paths found in SVG");
+      console.log(
+        "No paths found in SVG, falling back to rectangular border approach"
+      );
+      return createRectangleBorderForImageSvg(
+        svgStringValue,
+        width,
+        height,
+        borderWidth,
+        borderColor
+      );
     }
 
     // Create an outer path by uniting all paths
@@ -232,7 +411,10 @@ export const processSVG = (
     innerSvg.setAttribute("height", height.toString());
     innerSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     innerSvg.setAttribute("fill", "currentColor");
-    innerSvg.innerHTML = svgString.replace(/<svg[^>]*>([\s\S]*)<\/svg>/i, "$1");
+    innerSvg.innerHTML = svgStringValue.replace(
+      /<svg[^>]*>([\s\S]*)<\/svg>/i,
+      "$1"
+    );
 
     // Add the inner SVG to the final SVG
     finalSvg.appendChild(innerSvg);
@@ -246,11 +428,17 @@ export const processSVG = (
     return finalSvgString;
   } catch (error) {
     console.error("Error processing SVG:", error);
-    throw error;
+    // Return the original SVG as a fallback
+    return typeof svgString === "string" ? svgString : "";
   }
 };
 
-export const sanitizeSVG = (svgString: string): string => {
+export const sanitizeSVG = (svgString: unknown): string => {
+  // Check if the input is a valid string
+  if (typeof svgString !== "string") {
+    return "";
+  }
+
   // Remove unwanted script tags for security
   return svgString.replace(
     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,

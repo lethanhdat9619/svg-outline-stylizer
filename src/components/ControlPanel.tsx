@@ -1,11 +1,11 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, AlertCircle, Info } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface ControlPanelProps {
   borderWidth: number;
@@ -50,8 +50,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="space-y-2">
           <Label htmlFor="border-color">Border Color</Label>
           <div className="flex gap-2">
-            <div 
-              className="w-10 h-10 rounded border" 
+            <div
+              className="w-10 h-10 rounded border"
               style={{ backgroundColor: borderColor }}
             />
             <Input
@@ -70,7 +70,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
 
-        <Button 
+        <Button
           className="w-full bg-brand-purple hover:bg-brand-purple-dark"
           onClick={onProcess}
           disabled={isProcessing || !hasOriginalSVG}
@@ -84,6 +84,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             'Generate Outline'
           )}
         </Button>
+
+        <Alert variant="default" className="mt-4">
+          <Info className="h-4 w-4" />
+          <AlertTitle>SVGs with embedded images</AlertTitle>
+          <AlertDescription>
+            If you're processing SVGs with embedded base64 images, please use the{' '}
+            <Button
+              variant="link"
+              className="h-auto p-0 text-blue-600"
+              onClick={() => window.location.href = '/image-test'}
+            >
+              Image SVG Test Page
+            </Button>{' '}
+            for better results.
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );

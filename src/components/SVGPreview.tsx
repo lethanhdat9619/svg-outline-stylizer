@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Loader2, Download, ZoomIn, ZoomOut, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SVGPreviewProps {
-  svgString: string;
+  svgString: string | null | undefined;
   title: string;
   isProcessing?: boolean;
   downloadFileName?: string;
@@ -25,10 +24,19 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
   const [sanitizedSVG, setSanitizedSVG] = useState('');
 
   useEffect(() => {
-    if (svgString) {
-      // Simple sanitization - remove scripts
-      const cleanSVG = svgString.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-      setSanitizedSVG(cleanSVG);
+    // Check if svgString is a valid string first
+    if (typeof svgString === 'string' && svgString.trim()) {
+      try {
+        // Simple sanitization - remove scripts
+        const cleanSVG = svgString.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        setSanitizedSVG(cleanSVG);
+      } catch (error) {
+        console.error('Error sanitizing SVG:', error);
+        setSanitizedSVG('');
+      }
+    } else {
+      // If svgString is not a valid string, set sanitizedSVG to empty
+      setSanitizedSVG('');
     }
   }, [svgString]);
 
@@ -58,43 +66,46 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  // Helper to check if SVG content exists
+  const hasSvgContent = Boolean(sanitizedSVG);
+
   return (
     <Card className={cn("h-full flex flex-col", className)}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
           <CardTitle className="text-lg">{title}</CardTitle>
           <div className="flex gap-1">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleZoomOut} 
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleZoomOut}
               disabled={zoom <= 0.25}
               className="h-8 w-8"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleResetZoom}
               className="h-8 w-8"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleZoomIn}
               className="h-8 w-8"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
             {downloadFileName && (
-              <Button 
-                variant="outline" 
-                size="icon" 
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={handleDownload}
-                disabled={!svgString || isProcessing}
+                disabled={!hasSvgContent || isProcessing}
                 className="h-8 w-8 ml-2"
               >
                 <Download className="h-4 w-4" />
@@ -104,7 +115,7 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex items-center justify-center overflow-auto p-3 bg-gray-50 rounded-md">
-        <div 
+        <div
           ref={containerRef}
           className="relative flex items-center justify-center w-full h-full"
         >
@@ -113,9 +124,9 @@ const SVGPreview: React.FC<SVGPreviewProps> = ({
               <Loader2 className="h-8 w-8 animate-spin text-brand-purple mb-2" />
               <p className="text-sm text-gray-500">Processing SVG...</p>
             </div>
-          ) : svgString ? (
-            <div 
-              style={{ 
+          ) : hasSvgContent ? (
+            <div
+              style={{
                 transform: `scale(${zoom})`,
                 transition: 'transform 0.2s ease-out'
               }}

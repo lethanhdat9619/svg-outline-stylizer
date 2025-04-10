@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,13 +6,14 @@ import SVGUploader from '@/components/SVGUploader';
 import SVGPreview from '@/components/SVGPreview';
 import ControlPanel from '@/components/ControlPanel';
 import { processSVG, sanitizeSVG } from '@/utils/svgProcessor';
+import { useNavigate } from 'react-router-dom';
 
 const Index = () => {
   const [originalSVG, setOriginalSVG] = useState<string>('');
   const [processedSVG, setProcessedSVG] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('upload');
-  
+
   // Settings
   const [borderWidth, setBorderWidth] = useState<number>(10);
   const [borderColor, setBorderColor] = useState<string>('#000000');
@@ -53,6 +53,8 @@ const Index = () => {
     }
   }, [originalSVG, borderWidth, borderColor]);
 
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -68,13 +70,13 @@ const Index = () => {
             <TabsTrigger value="upload">Upload SVG</TabsTrigger>
             <TabsTrigger value="preview" disabled={!originalSVG}>Preview & Process</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="upload" className="space-y-4">
             <SVGUploader onSVGLoaded={handleSVGLoaded} />
-            
+
             {originalSVG && (
               <div className="flex justify-center mt-4">
-                <Button 
+                <Button
                   onClick={() => setActiveTab('preview')}
                   className="bg-brand-purple hover:bg-brand-purple-dark"
                 >
@@ -83,11 +85,11 @@ const Index = () => {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="preview" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1">
-                <ControlPanel 
+                <ControlPanel
                   borderWidth={borderWidth}
                   borderColor={borderColor}
                   onBorderWidthChange={setBorderWidth}
@@ -97,33 +99,33 @@ const Index = () => {
                   hasOriginalSVG={!!originalSVG}
                 />
               </div>
-              
+
               <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4 h-[500px]">
-                <SVGPreview 
-                  svgString={originalSVG} 
-                  title="Original SVG" 
+                <SVGPreview
+                  svgString={originalSVG}
+                  title="Original SVG"
                   className="h-full"
                 />
-                <SVGPreview 
-                  svgString={processedSVG} 
-                  title="Processed SVG" 
+                <SVGPreview
+                  svgString={processedSVG}
+                  title="Processed SVG"
                   isProcessing={isProcessing}
                   downloadFileName="outlined-svg.svg"
                   className="h-full"
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-center space-x-4 mt-6">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setActiveTab('upload')}
               >
                 Upload Another SVG
               </Button>
-              
+
               {processedSVG && (
-                <Button 
+                <Button
                   className="bg-brand-purple hover:bg-brand-purple-dark"
                   onClick={() => {
                     const blob = new Blob([processedSVG], { type: 'image/svg+xml' });
@@ -141,6 +143,10 @@ const Index = () => {
                 </Button>
               )}
             </div>
+
+            <Button variant="outline" onClick={() => navigate('/image-test')}>
+              Test SVG Image Borders
+            </Button>
           </TabsContent>
         </Tabs>
       </div>
